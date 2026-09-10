@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
 	defaultWidth = 40
-	femboyArt = `
+	version      = "1.0.0"
+	femboyArt    = `
          \
           \
            \
@@ -18,8 +20,8 @@ const (
 ⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⣯⡏⠉⣴⣿⢿⢿⣿⢷⣶⣍⡻⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⢠⡶⢤⣴⣿⠟⠀⢁⡞⠛⡟⢣⠐⢳⡀⠈⢻⣯⡺⢦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⢸⣇⣾⣟⠎⠀⢠⡞⠀⡀⢀⠆⠀⠀⣧⠀⡀⠹⡳⣦⣿⡦⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠀⡸⣻⣟⡟⠀⠀⢸⠁⢀⢧⢸⡾⡀⠶⣿⡿⣳⣅⣼⢻⠙⢿⡶⢤⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-⠀⠀⠀⠞⠉⡿⢡⢡⠀⠀⣿⠀⣿⣯⣭⣹⢝⡊⢸⠚⢻⠝⢺⣗⢆⣸⡷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⡸⣻⣟⡟⠀⠀⢸⠁⢀⢧⢸⡾⡀⠶⣿⡿⣳⣅⣼⢻⠙⢿⡶⢤⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠞⠉⡿⢡⢡⠀⠀⣿⠀⣿⣯⣭⣹⢝⡊⢸⠚⢻⠝⢺⣗⢆⣸⡷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⢠⢳⣮⣣⣤⣄⡟⣇⡿⣻⡿⣿⠉⠻⣜⠐⠿⣛⡻⠿⠿⠵⡳⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⢀⡿⢻⢡⡿⣼⡃⢡⠈⣴⠈⠒⠋⠀⠀⠐⠀⠀⠀⠌⡟⡦⣌⡉⠻⡉⢣⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⢸⠃⢹⣾⠀⢹⣷⡜⣷⣿⣧⠀⠀⢴⠞⠛⣿⠀⢀⢧⡜⡟⠀⠉⠓⢄⡀⠈⠓⠤⣀⠀⠀⠀⠀⠀⠀⠀
@@ -50,6 +52,7 @@ const (
 ⠀⠀⠀⠀⠀⠀⠸⡄⠀⠀⠀⠀⠀⠀⠀⠀⠰⠂⠀⠀⢧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢧⠀⠀⠀⠀⠀⠀⠀⠀⠀`
 )
 
+// Message holds the wrapped lines of a speech bubble.
 type Message struct {
 	lines    []string
 	maxWidth int
@@ -59,7 +62,6 @@ func printArt() {
 	fmt.Println(femboyArt)
 }
 
-// new message; empty
 func newMessage() *Message {
 	return &Message{
 		lines:    make([]string, 0),
@@ -67,99 +69,135 @@ func newMessage() *Message {
 	}
 }
 
-// adds a line to our message and keeps track of the widest line
+func displayWidth(s string) int {
+	return utf8.RuneCountInString(s)
+}
+
+// addLine appends a line and tracks the widest line (in runes).
 func (m *Message) addLine(line string) {
 	m.lines = append(m.lines, line)
-	if len(line) > m.maxWidth {
-		m.maxWidth = len(line)
+	if w := displayWidth(line); w > m.maxWidth {
+		m.maxWidth = w
 	}
 }
 
-// wrapper
-func (m *Message) wrapText(text string, width int) {
-	paragraphs := strings.Split(text, "\n")
+// splitWord breaks a single over-long word into width-sized chunks.
+func splitWord(word string, width int) []string {
+	if width <= 0 || displayWidth(word) <= width {
+		return []string{word}
+	}
+	var chunks []string
+	var current strings.Builder
+	count := 0
+	for _, r := range word {
+		if count >= width {
+			chunks = append(chunks, current.String())
+			current.Reset()
+			count = 0
+		}
+		current.WriteRune(r)
+		count++
+	}
+	if current.Len() > 0 {
+		chunks = append(chunks, current.String())
+	}
+	return chunks
+}
 
-	for _, para := range paragraphs {
-	// skip empty paras
+// wrapText word-wraps text into the message, preserving explicit newlines.
+func (m *Message) wrapText(text string, width int) {
+	for _, para := range strings.Split(text, "\n") {
+		// Preserve blank lines as empty bubble rows.
 		if len(strings.TrimSpace(para)) == 0 {
+			m.addLine("")
 			continue
 		}
 
 		words := strings.Fields(para)
-		if len(words) == 0 {
-			continue
-		}
-
 		currentLine := ""
+		currentWidth := 0
+
+		flush := func() {
+			if currentLine != "" {
+				m.addLine(currentLine)
+				currentLine = ""
+				currentWidth = 0
+			}
+		}
 
 		for _, word := range words {
-			testLine := currentLine
-			if len(currentLine) > 0 {
-				testLine += " "
-			}
-			testLine += word
-
-			if len(testLine) <= width {
-				currentLine = testLine
-			} else {
-				if len(currentLine) > 0 {
-					m.addLine(currentLine)
+			// Break words longer than the width.
+			if displayWidth(word) > width {
+				flush()
+				for _, chunk := range splitWord(word, width) {
+					m.addLine(chunk)
 				}
+				continue
+			}
+
+			w := displayWidth(word)
+			sep := 0
+			if currentWidth > 0 {
+				sep = 1
+			}
+			if currentWidth+sep+w <= width {
+				if currentWidth > 0 {
+					currentLine += " "
+				}
+				currentLine += word
+				currentWidth += sep + w
+			} else {
+				flush()
 				currentLine = word
+				currentWidth = w
 			}
 		}
-
-		if len(currentLine) > 0 {
-			m.addLine(currentLine)
-		}
+		flush()
 	}
 }
 
 func printBorder(width int, left, middle, right rune) {
 	fmt.Printf("%c", left)
-	for i := 0; i < width+2; i++ {
-		fmt.Printf("%c", middle)
-	}
+	fmt.Print(strings.Repeat(string(middle), width+2))
 	fmt.Printf("%c\n", right)
 }
 
 func (m *Message) printBubble() {
 	width := m.maxWidth
 
-	// top border
+	// Top border.
 	printBorder(width, ' ', '_', ' ')
 
 	for i, line := range m.lines {
 		var leftChar, rightChar rune
 
-		// single line gets angle brackets
-		if len(m.lines) == 1 {
+		switch {
+		case len(m.lines) == 1:
 			leftChar = '<'
 			rightChar = '>'
-		} else if i == 0 {
-			// first line of multiple gets forward slashes
+		case i == 0:
 			leftChar = '/'
 			rightChar = '\\'
-		} else if i == len(m.lines)-1 {
-			// last line gets backslashes
+		case i == len(m.lines)-1:
 			leftChar = '\\'
 			rightChar = '/'
-		} else {
-			// middle lines get pipes
+		default:
 			leftChar = '|'
 			rightChar = '|'
 		}
 
-		padding := width - len(line)
+		padding := width - displayWidth(line)
 		fmt.Printf("%c %s%s %c\n", leftChar, line, strings.Repeat(" ", padding), rightChar)
 	}
 
-	// bottom border
+	// Bottom border.
 	printBorder(width, ' ', '-', ' ')
 }
 
 func readStdin() (string, error) {
 	scanner := bufio.NewScanner(os.Stdin)
+	// Allow long piped input.
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	var lines []string
 
 	for scanner.Scan() {
@@ -173,29 +211,62 @@ func readStdin() (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
-func main() {
-	width := flag.Int("w", defaultWidth, "maximum width of the speech bubble")
-	showHelp := flag.Bool("h", false, "show this help message")
+func stdinIsPipe() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice == 0
+}
 
+func usage() {
+	fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] [message]\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "\nPrints MESSAGE (or stdin) in a speech bubble next to a femboy.\n")
+	fmt.Fprintf(os.Stderr, "\nOptions:\n")
+	flag.PrintDefaults()
+	fmt.Fprintf(os.Stderr, "\nExamples:\n")
+	fmt.Fprintf(os.Stderr, "  %s hello world\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  echo hello | %s\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s -w 60 hello world\n", os.Args[0])
+}
+
+func main() {
+	width := flag.Int("w", defaultWidth, "maximum `width` of the speech bubble")
+	showHelp := flag.Bool("h", false, "show this help message")
+	showVersion := flag.Bool("v", false, "print version and exit")
+
+	flag.Usage = usage
 	flag.Parse()
 
 	if *showHelp {
-		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] [message]\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "\nOptions:\n")
-		flag.PrintDefaults()
+		usage()
 		os.Exit(0)
+	}
+
+	if *showVersion {
+		fmt.Printf("femboysay %s\n", version)
+		os.Exit(0)
+	}
+
+	if *width <= 0 {
+		fmt.Fprintf(os.Stderr, "Error: width must be positive, got %d\n", *width)
+		os.Exit(1)
 	}
 
 	var messageText string
 	if flag.NArg() > 0 {
 		messageText = strings.Join(flag.Args(), " ")
-	} else {
+	} else if stdinIsPipe() {
 		var err error
 		messageText, err = readStdin()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
+	} else {
+		usage()
+		fmt.Fprintf(os.Stderr, "\nError: no message provided\n")
+		os.Exit(1)
 	}
 
 	messageText = strings.TrimSpace(messageText)

@@ -1,0 +1,15 @@
+# Binaries
+/femboysay
+/femboysay-test
+*.exe
+*.test
+*.out
+
+# Build cache / modules
+/vendor/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
