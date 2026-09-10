@@ -11,7 +11,8 @@ import (
 
 const (
 	defaultWidth = 40
-	version      = "1.0.0"
+	defaultStyle = "rounded"
+	version      = "1.1.0"
 	femboyArt    = `
          \
           \
@@ -156,13 +157,31 @@ func (m *Message) wrapText(text string, width int) {
 	}
 }
 
+// bubbleStyle defines the border characters for a speech bubble.
+type bubbleStyle struct {
+	topLeft     string
+	horizontal  string
+	topRight    string
+	side        string
+	bottomLeft  string
+	bottomRight string
+}
+
+// Pretty unicode box styles. "classic" keeps the old cowsay look.
+var bubbleStyles = map[string]bubbleStyle{
+	"rounded": {"╭", "─", "╮", "│", "╰", "╯"},
+	"sharp":   {"┌", "─", "┐", "│", "└", "┘"},
+	"double":  {"╔", "═", "╗", "║", "╚", "╝"},
+	"heavy":   {"┏", "━", "┓", "┃", "┗", "┛"},
+}
+
 func printBorder(width int, left, middle, right rune) {
 	fmt.Printf("%c", left)
 	fmt.Print(strings.Repeat(string(middle), width+2))
 	fmt.Printf("%c\n", right)
 }
 
-func (m *Message) printBubble() {
+func (m *Message) printClassicBubble() {
 	width := m.maxWidth
 
 	// Top border.
@@ -192,6 +211,31 @@ func (m *Message) printBubble() {
 
 	// Bottom border.
 	printBorder(width, ' ', '-', ' ')
+}
+
+func (m *Message) printBubble(styleName string) {
+	// Old cowsay look on request.
+	if styleName == "classic" || styleName == "ascii" || styleName == "cowsay" {
+		m.printClassicBubble()
+		return
+	}
+
+	style, ok := bubbleStyles[styleName]
+	if !ok {
+		style = bubbleStyles["rounded"]
+	}
+	width := m.maxWidth
+
+	// Top border.
+	fmt.Printf("%s%s%s\n", style.topLeft, strings.Repeat(style.horizontal, width+2), style.topRight)
+
+	for _, line := range m.lines {
+		padding := width - displayWidth(line)
+		fmt.Printf("%s %s%s %s\n", style.side, line, strings.Repeat(" ", padding), style.side)
+	}
+
+	// Bottom border.
+	fmt.Printf("%s%s%s\n", style.bottomLeft, strings.Repeat(style.horizontal, width+2), style.bottomRight)
 }
 
 func readStdin() (string, error) {
@@ -228,10 +272,12 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  %s hello world\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  echo hello | %s\n", os.Args[0])
 	fmt.Fprintf(os.Stderr, "  %s -w 60 hello world\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  %s -style double hello world\n", os.Args[0])
 }
 
 func main() {
 	width := flag.Int("w", defaultWidth, "maximum `width` of the speech bubble")
+	style := flag.String("style", defaultStyle, "bubble `style`: rounded, sharp, double, heavy, classic")
 	showHelp := flag.Bool("h", false, "show this help message")
 	showVersion := flag.Bool("v", false, "print version and exit")
 
@@ -250,6 +296,15 @@ func main() {
 
 	if *width <= 0 {
 		fmt.Fprintf(os.Stderr, "Error: width must be positive, got %d\n", *width)
+		os.Exit(1)
+	}
+
+	*style = strings.ToLower(strings.TrimSpace(*style))
+	switch *style {
+	case "rounded", "sharp", "double", "heavy", "classic", "ascii", "cowsay":
+		// valid
+	default:
+		fmt.Fprintf(os.Stderr, "Error: unknown style %q (choose: rounded, sharp, double, heavy, classic)\n", *style)
 		os.Exit(1)
 	}
 
@@ -278,6 +333,6 @@ func main() {
 	msg := newMessage()
 	msg.wrapText(messageText, *width)
 
-	msg.printBubble()
+	msg.printBubble(*style)
 	printArt()
 }

@@ -3,9 +3,9 @@
 its amazing, isn't it. now hyprland users can **EXPRESS** themselves.
 
 ```
- __________________
-< femboys say hi! >
- ------------------
+╭─────────────────╮
+│ femboys say hi! │
+╰─────────────────╯
 
          \
           \
@@ -33,6 +33,7 @@ go install gitlab.com/lalaggi/femboysay@latest
 femboysay hello world
 echo hello | femboysay
 femboysay -w 60 hello world
+femboysay -style double hello world
 femboysay -h
 femboysay -v
 ```
@@ -40,6 +41,7 @@ femboysay -v
 Options:
 
 - `-w <n>` — maximum width of the speech bubble (default: 40)
+- `-style <name>` — bubble style: `rounded` (default), `sharp`, `double`, `heavy`, `classic` (old cowsay look)
 - `-h` — show help
 - `-v` — print version
 
